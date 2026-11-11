@@ -1,65 +1,43 @@
-# Code accompanying the osteosarcoma XANES latent-space clustering study
+# Osteosarcoma XANES latent-space clustering
 
-This repository contains the reusable methodological core associated with the manuscript:
+Code accompanying **Unsupervised Latent Space Clustering of Osteosarcoma X Ray Spectra Using PCA and Deep Autoencoders**.
 
-**Unsupervised Latent Space Clustering of Osteosarcoma X-ray Spectra Using PCA and Deep Autoencoders**
+## Contents
 
-## Included code
+- `models.py` — 1D convolutional autoencoder with a two-dimensional latent space.
+- `losses.py` — peak- and gradient-sensitive L1 loss and Gaussian-RBF MMD.
+- `clustering.py` — DBSCAN/HDBSCAN selection, Silhouette/DBCV scores, and SVC label projection.
 
-- `os_xanes_latent/models.py` — 1D convolutional autoencoder used to obtain low-dimensional latent representations.
-- `os_xanes_latent/losses.py` — peak- and gradient-sensitive L1 reconstruction loss and Gaussian-kernel MMD regularization.
-- `os_xanes_latent/clustering.py` — DBSCAN/HDBSCAN Silhouette-based hyperparameter selection, Silhouette/DBCV evaluation, and SVC-based out-of-sample label projection.
+All files are in `os_xanes_latent/`.
 
-## Minimal usage
+## Usage
+
+Inputs are PyTorch tensors of shape `(batch, channels, length)`, with one or two channels. The study used 345 spectral points with 20-point mean padding on each side (`length=385`); preprocessing is external to this library.
 
 ```python
-import numpy as np
-import torch
+from os_xanes_latent import SpectralAutoencoder, SpectralL1Loss, mmd_to_standard_normal
 
-from os_xanes_latent import (
-    SpectralAutoencoder,
-    SpectralL1Loss,
-    optimize_dbscan,
-    clustering_scores,
-    project_labels_with_svc,
-)
-
-# Autoencoder input shape: (batch, channels, spectral_length)
-x = torch.randn(8, 1, 345)
 model = SpectralAutoencoder(
-    bottleneck_size=2,
-    n_layers=1,
-    siglen=345,
-    n_signals=1,
-    h_dims=32,
-    final_conv_dim=4,
-    kernel_size=8,
-    stride=1,
+    bottleneck_size=2, n_layers=4, siglen=385, n_signals=2,
+    h_dims=128, final_conv_dim=8, kernel_size=8, stride=2,
 )
+
+# x: prepared tensor of shape (batch, 2, 385)
 z, x_hat = model(x, return_code=True)
-
 criterion = SpectralL1Loss(peak_weight=2.0, gradient_weight=1.0)
-reconstruction_loss = criterion(x_hat, x)
-
-# Example clustering on a two-dimensional representation.
-X_dev = np.asarray(z.detach().cpu())
-result = optimize_dbscan(
-    X_dev,
-    eps_values=np.linspace(0.1, 1.0, 20),
-    min_samples_values=range(2, 15),
-)
-labels_dev = result["labels"]
-
-# DBCV requires the optional `dbcv` package used by the study code.
-scores = clustering_scores(X_dev, labels_dev)
-
-# Density-based cluster labels can be approximately projected to held-out embeddings.
-X_test = X_dev[:2]
-labels_test = project_labels_with_svc(X_dev, labels_dev, X_test)
+loss_rec = sum(criterion(x_hat[:, i:i+1], x[:, i:i+1]) for i in range(2))
+loss_mmd = mmd_to_standard_normal(z, sigma=1.0)
 ```
 
-The SVC projection is an approximate out-of-sample extension of the density-based clustering solution. Noise points (`-1`) are retained as an additional SVC class, matching the study implementation.
+For single-channel inputs, use `n_signals=1` and `loss_rec = criterion(x_hat, x)`. The manuscript specifies the training objective and MMD schedule.
 
-## Scope
-This repo is meant to provide the code backbone of the paper but not to reproduce all the numerical results contained in it.
-Exact reproduction of the numerical results reported in the manuscript requires authorized access to the original dataset and the study-specific procedures described in the paper.
+## Clustering
+
+The clustering functions accept NumPy embeddings of shape `(n_samples, 2)`. DBSCAN/HDBSCAN parameters are selected by Silhouette with noise excluded and a noise fraction below 5%; DBCV is evaluated afterward. SVC projects labels to held-out embeddings for visualization only.
+
+## Dependencies and scope
+
+Requires PyTorch, NumPy, and scikit-learn (with `sklearn.cluster.HDBSCAN`); DBCV additionally requires `dbcv`.
+
+This is a compact implementation of the main methods, **not** the complete experimental pipeline. It excludes preprocessing, splitting, training scripts, model weights, and private clinical data. Study-specific procedures are documented in the manuscript; exact numerical reproduction requires authorized access to the original data.
+
