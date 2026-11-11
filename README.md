@@ -33,11 +33,11 @@ For single-channel inputs, use `n_signals=1` and `loss_rec = criterion(x_hat, x)
 
 ## Clustering
 
-The clustering functions accept NumPy embeddings of shape `(n_samples, 2)`. DBSCAN/HDBSCAN parameters are selected by Silhouette with noise excluded and a noise fraction below 5%; DBCV is evaluated afterward. SVC projects labels to held-out embeddings for visualization only.
+The clustering functions accept NumPy embeddings of shape `(n_samples, 2)`. DBSCAN/HDBSCAN parameters are selected by Silhouette with noise excluded; DBCV is evaluated afterward. SVC projects labels to held-out embeddings for visualization only.
 
 ## Dependencies and scope
 
 Requires PyTorch, NumPy, and scikit-learn (with `sklearn.cluster.HDBSCAN`); DBCV additionally requires `dbcv`.
 
-This is a compact implementation of the main methods, **not** the complete experimental pipeline. It excludes preprocessing, splitting, training scripts, model weights, and private clinical data. Study-specific procedures are documented in the manuscript; exact numerical reproduction requires authorized access to the original data.
+This is a compact implementation of the main methods, **not** the complete experimental pipeline. It excludes, for example, model weights and private clinical data. Study-specific procedures are documented in the manuscript; exact numerical reproduction requires authorized access to the original data.
 
